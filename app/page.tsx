@@ -6,6 +6,8 @@ type Screen = "welcome"|"gender"|"profile"|"outfit"|"companion";
 type Status = "idle"|"recording"|"transcribing"|"thinking"|"speaking";
 type Chat = { role:"user"|"assistant"; content:string };
 
+type Offset = { x:number; y:number };
+
 const KEY = "nongnam_next_voice_memory";
 const defaultMemory = {
   gender: "female" as Gender,
@@ -35,6 +37,121 @@ const traits = [
 function mimeType() {
   const list = ["audio/webm;codecs=opus","audio/webm","audio/mp4","audio/mpeg"];
   return list.find(t => typeof MediaRecorder !== "undefined" && MediaRecorder.isTypeSupported(t)) || "";
+}
+
+function distance(a:{x:number;y:number}, b:{x:number;y:number}) {
+  return Math.hypot(a.x - b.x, a.y - b.y);
+}
+function center(a:{x:number;y:number}, b:{x:number;y:number}) {
+  return { x:(a.x+b.x)/2, y:(a.y+b.y)/2 };
+}
+function clamp(n:number, min:number, max:number) { return Math.max(min, Math.min(max, n)); }
+
+function ZoomableImage({ src, alt, className="" }:{ src:string; alt:string; className?:string }) {
+  const [scale, setScale] = useState(1);
+  const [offset, setOffset] = useState<Offset>({ x:0, y:0 });
+  const pointers = useRef(new Map<number, {x:number; y:number}>());
+  const gesture = useRef({
+    mode: "none" as "none"|"pan"|"pinch",
+    startScale: 1,
+    startOffset: { x:0, y:0 },
+    startPoint: { x:0, y:0 },
+    startCenter: { x:0, y:0 },
+    startDistance: 0
+  });
+
+  function resetView() {
+    setScale(1);
+    setOffset({ x:0, y:0 });
+  }
+
+  function onPointerDown(e:any) {
+    e.preventDefault();
+    e.currentTarget.setPointerCapture?.(e.pointerId);
+    pointers.current.set(e.pointerId, { x:e.clientX, y:e.clientY });
+
+    if (pointers.current.size === 1) {
+      gesture.current = {
+        ...gesture.current,
+        mode: "pan",
+        startOffset: offset,
+        startPoint: { x:e.clientX, y:e.clientY }
+      };
+    }
+
+    if (pointers.current.size === 2) {
+      const pts = [...pointers.current.values()];
+      gesture.current = {
+        mode: "pinch",
+        startScale: scale,
+        startOffset: offset,
+        startPoint: { x:0, y:0 },
+        startCenter: center(pts[0], pts[1]),
+        startDistance: Math.max(1, distance(pts[0], pts[1]))
+      };
+    }
+  }
+
+  function onPointerMove(e:any) {
+    if (!pointers.current.has(e.pointerId)) return;
+    pointers.current.set(e.pointerId, { x:e.clientX, y:e.clientY });
+
+    if (pointers.current.size >= 2) {
+      const pts = [...pointers.current.values()].slice(0, 2);
+      const nowCenter = center(pts[0], pts[1]);
+      const nowDistance = Math.max(1, distance(pts[0], pts[1]));
+      const nextScale = clamp(gesture.current.startScale * (nowDistance / gesture.current.startDistance), 1, 4);
+      const dx = nowCenter.x - gesture.current.startCenter.x;
+      const dy = nowCenter.y - gesture.current.startCenter.y;
+      setScale(nextScale);
+      setOffset({ x: gesture.current.startOffset.x + dx, y: gesture.current.startOffset.y + dy });
+      return;
+    }
+
+    if (gesture.current.mode === "pan" && scale > 1) {
+      const dx = e.clientX - gesture.current.startPoint.x;
+      const dy = e.clientY - gesture.current.startPoint.y;
+      setOffset({ x: gesture.current.startOffset.x + dx, y: gesture.current.startOffset.y + dy });
+    }
+  }
+
+  function onPointerUp(e:any) {
+    pointers.current.delete(e.pointerId);
+    if (pointers.current.size === 1) {
+      const pt = [...pointers.current.values()][0];
+      gesture.current = {
+        ...gesture.current,
+        mode: "pan",
+        startPoint: { x: pt.x, y: pt.y },
+        startOffset: offset
+      };
+    }
+    if (pointers.current.size === 0) {
+      gesture.current = { ...gesture.current, mode:"none", startScale:scale, startOffset:offset };
+      if (scale <= 1.02) {
+        setScale(1);
+        setOffset({ x:0, y:0 });
+      }
+    }
+  }
+
+  function onWheel(e:any) {
+    e.preventDefault();
+    const delta = e.deltaY < 0 ? 0.16 : -0.16;
+    setScale(prev => {
+      const next = clamp(prev + delta, 1, 4);
+      if (next === 1) setOffset({ x:0, y:0 });
+      return next;
+    });
+  }
+
+  return (
+    <div className={`zoom-wrap ${className}`} onPointerDown={onPointerDown} onPointerMove={onPointerMove} onPointerUp={onPointerUp} onPointerCancel={onPointerUp} onWheel={onWheel} onDoubleClick={resetView}>
+      <img src={src} alt={alt} draggable={false} style={{ transform:`translate(${offset.x}px, ${offset.y}px) scale(${scale})` }} />
+      <div className="zoom-help">จีบ/กาง 2 นิ้วเพื่อซูม • ลากเพื่อเลื่อน • แตะสองครั้งเพื่อรีเซ็ต</div>
+      {scale > 1 && <button className="reset-zoom" onClick={resetView}>รีเซ็ตมุมมอง</button>}
+    </div>
+  );
 }
 
 export default function Page() {
@@ -76,7 +193,7 @@ export default function Page() {
 
   function save(patch:any) { setMem(prev => ({...prev, ...patch})); }
   function saveProfile(patch:any) { setMem(prev => ({...prev, profile:{...prev.profile, ...patch}})); }
-  function notify(t:string) { setToast(t); setTimeout(()=>setToast(""),2500); }
+  function notify(t:string) { setToast(t); setTimeout(()=>setToast(""),2600); }
   function greeting(m=mem) { return `${m.profile.userNickname} กลับมาแล้วเหรอ${m.gender==="female"?"คะ":"ครับ"} ${m.profile.nongnamName} รออยู่เลย 💗`; }
   function addSub(t:string) { setMem(prev => ({...prev, subtitles:[...prev.subtitles,t].slice(-8)})); }
   function addHistory(role:"user"|"assistant", content:string) { setMem(prev => ({...prev, history:[...prev.history,{role,content}].slice(-12)})); }
@@ -93,6 +210,7 @@ export default function Page() {
   function selectOutfit(i:number) {
     if (!mem.unlocked[gender].includes(i)) return notify(`ชุดนี้ยังล็อกอยู่ ต้องใช้เครดิต ${outfits[i]?.price || 0} 💎`);
     save({ outfit:i });
+    notify(`เปลี่ยนเป็น ${outfits[i].name} แล้ว`);
   }
 
   function completeOnboarding() {
@@ -255,9 +373,9 @@ export default function Page() {
 
   return <main className="app">
     {screen==="welcome" && <section className="screen"><div className="hero">
-      <div className="badge">🌸 Nong Nam AI · Voice API</div>
+      <div className="badge">🌸 Nong Nam AI · Real Outfit Ready</div>
       <h1>สร้าง<br/><em>น้องน้ำ</em>ของคุณ</h1>
-      <p>กดไมค์ค้างเพื่ออัดเสียง ปล่อยเพื่อส่งไปถอดเสียงด้วย API แล้วให้น้องน้ำตอบกลับ</p>
+      <p>เวอร์ชันนี้พร้อมแล้วสำหรับการใส่ “รูปจริง” เข้าแอป พร้อมเปลี่ยนชุด และซูมดูใกล้ ๆ ด้วยการจีบ/กางนิ้ว</p>
       <button className="primary" onClick={()=>setScreen(mem.onboardingCompleted?"companion":"gender")}>เริ่มใช้งาน →</button>
       <button className="secondary" onClick={resetAll}>รีเซ็ตข้อมูลทั้งหมด</button>
     </div></section>}
@@ -279,21 +397,25 @@ export default function Page() {
         <div className="row"><div><label>อายุ</label><input value={p.nongnamAge} onChange={e=>saveProfile({nongnamAge:e.target.value})}/></div><div><label>วันเกิด</label><input value={p.nongnamBirthday} onChange={e=>saveProfile({nongnamBirthday:e.target.value})}/></div></div>
         <div className="row"><div><label>ส่วนสูง</label><input value={p.nongnamHeight} onChange={e=>saveProfile({nongnamHeight:e.target.value})}/></div><div><label>น้ำหนัก</label><input value={p.nongnamWeight} onChange={e=>saveProfile({nongnamWeight:e.target.value})}/></div></div>
         <label>โหมดความสัมพันธ์</label><select value={p.relationshipMode} onChange={e=>saveProfile({relationshipMode:e.target.value})}><option value="friend">เพื่อนคุย</option><option value="secretary">เลขาส่วนตัว</option><option value="warmPartner">ฟีลแฟนอบอุ่น</option></select>
-        <label>บุคลิก</label><div className="traits">{traits.map(([id,label])=><button key={id} className={`trait ${p.personalityTraits.includes(id)?"active":""}`} onClick={()=>toggleTrait(id)}>{label}</button>)}</div>
+        <label>บุคลิก</label><div className="traits">{traits.map(([id,label])=><button type="button" key={id} className={`trait ${p.personalityTraits.includes(id)?"active":""}`} onClick={()=>toggleTrait(id)}>{label}</button>)}</div>
       </div>
       <div className="bottom-next"><button className="primary full" onClick={()=>setScreen("outfit")}>บันทึกและเลือกชุด →</button></div>
     </section>}
 
     {screen==="outfit" && <section className="screen">
-      <div className="top"><button className="icon" onClick={()=>setScreen("profile")}>←</button><div className="brand"><h2>เลือกชุด</h2><p>เลเวล 1 เปิดใช้ ชุดอื่นล็อกไว้</p></div><button className="icon" onClick={()=>setScreen("companion")}>✓</button></div>
-      <div className="stage"><div className="stage-pill">พร้อมแต่งตัว</div><div className="stage-name">{p.nongnamName}</div><img src={avatar}/></div>
+      <div className="top"><button className="icon" onClick={()=>setScreen("profile")}>←</button><div className="brand"><h2>เลือกชุด</h2><p>กดชุดเพื่อสลับลุคทันที</p></div><button className="icon" onClick={()=>setScreen("companion")}>✓</button></div>
+      <div className="stage">
+        <div className="stage-pill">แตะค้าง/จีบเพื่อดูใกล้ ๆ</div>
+        <div className="stage-name">{p.nongnamName}</div>
+        <ZoomableImage src={avatar} alt={p.nongnamName} className="stage-zoom"/>
+      </div>
       <div className="outfits">{outfits.map((o,i)=>{const unlocked=mem.unlocked[gender].includes(i);return <div key={o.id} className={`outfit ${i===mem.outfit&&unlocked?"selected":""}`} onClick={()=>selectOutfit(i)}><div className="mini"><img src={o.image}/>{!unlocked&&<div className="lock">🔒</div>}</div>{i===mem.outfit&&unlocked&&<div className="tick">✓</div>}<div className="info"><b>LEVEL {i+1}: {o.name}</b><span>{o.desc}</span><div className={`price ${o.price===0?"free":""}`}>{o.price===0?"ฟรี":`💎 ${o.price}`}</div></div></div>})}</div>
       <div className="bottom-next"><button className="primary full" onClick={completeOnboarding}>เริ่มคุย →</button></div>
     </section>}
 
     {screen==="companion" && <section className="screen companion">
       <div className="companion-stage">
-        <div className={`avatar ${status==="speaking"?"speaking":""}`}><img src={avatar}/></div>
+        <div className={`avatar ${status==="speaking"?"speaking":""}`}><ZoomableImage src={avatar} alt={p.nongnamName} /></div>
         <div className="float-top"><button className="icon" onClick={()=>setScreen("outfit")}>☰</button><div className="pill">{p.nongnamName} AI</div><div className="pill">💎 {mem.gems}</div></div>
         <div className="name">{p.nongnamName}</div>
         <div className={`status ${status}`}>{statusText}</div>
