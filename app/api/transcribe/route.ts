@@ -8,9 +8,7 @@ export async function POST(req: NextRequest) {
 
     const form = await req.formData();
     const file = form.get("audio");
-    if (!file || !(file instanceof File)) {
-      return NextResponse.json({ error: "No audio file" }, { status: 400 });
-    }
+    if (!file || !(file instanceof File)) return NextResponse.json({ error: "No audio file" }, { status: 400 });
 
     const fd = new FormData();
     fd.append("file", file, file.name || "speech.webm");

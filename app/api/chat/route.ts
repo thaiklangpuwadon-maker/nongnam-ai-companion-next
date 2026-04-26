@@ -7,17 +7,13 @@ function systemPrompt(profile:any) {
   const gender = profile?.nongnamGender === "male" ? "ผู้ชาย" : "ผู้หญิง";
   const mode = profile?.relationshipMode || "warmPartner";
   const traits = (profile?.personalityTraits || []).join(", ") || "อบอุ่น, ดูแลเก่ง";
-
   return `คุณคือ "${name}" AI Companion ภาษาไทย
-คุณเป็น AI Companion ไม่ใช่มนุษย์จริง
 ผู้ใช้ต้องการให้เรียกว่า "${user}"
 เพศคาแรกเตอร์: ${gender}
 โหมด: ${mode}
 บุคลิก: ${traits}
-
 กฎ:
 - ตอบเป็นภาษาไทย
-- เรียกผู้ใช้ว่า "${user}" เมื่อเหมาะสม
 - อบอุ่น สุภาพ เป็นกันเอง
 - ถ้าเป็น secretary ให้ตอบเป็นขั้นตอน
 - ถ้าเป็น warmPartner ให้หวาน อ่อนโยน แต่ไม่ล่อแหลม
@@ -44,12 +40,7 @@ export async function POST(req: NextRequest) {
     const r = await fetch("https://api.openai.com/v1/chat/completions", {
       method: "POST",
       headers: { Authorization: `Bearer ${apiKey}`, "Content-Type": "application/json" },
-      body: JSON.stringify({
-        model: "gpt-4o-mini",
-        messages,
-        temperature: 0.8,
-        max_tokens: 350
-      })
+      body: JSON.stringify({ model: "gpt-4o-mini", messages, temperature: 0.8, max_tokens: 350 })
     });
 
     const raw = await r.text();
