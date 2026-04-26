@@ -1,36 +1,38 @@
-# Nong Nam Next Voice MVP — Real Image + Outfit Switch + Pinch Zoom
+# Nong Nam Next — Dev Unlock + Special20 + Low Token
 
-เวอร์ชันนี้เพิ่มแล้ว:
-- ใช้รูปจริงของน้องน้ำแทนรูปการ์ตูน (อย่างน้อยชุดเริ่มต้นฝั่งผู้หญิง)
-- เปลี่ยนชุดได้จากหน้าชุด
-- ซูม/เลื่อนรูปได้ด้วยนิ้ว (pinch zoom + pan)
-- แตะสองครั้งเพื่อรีเซ็ตมุมมอง
-- ปรับข้อความปุ่มไมค์ให้อ่านง่ายขึ้น
+เวอร์ชันนี้เพิ่ม:
+- เปิดชุดทั้งหมดสำหรับทดสอบ (`DEV_UNLOCK_ALL = true`)
+- เพิ่มหมวด `พิเศษ 20+`
+- เพิ่ม age confirm popup ก่อนเข้า 20+
+- เพิ่ม chat bubble แยกสี:
+  - ผู้ใช้ = เขียวอ่อน
+  - น้องน้ำ = ขาว/ชมพูอ่อน
+- ปรับ API chat เป็นโหมดประหยัด token:
+  - ตอบสั้น 1–3 ประโยค
+  - `max_tokens` ลดเหลือ 120
+  - history ส่งแค่ 6 ข้อความล่าสุด
+- เพิ่มระบบหักเพชรแบบจำลอง:
+  - ส่งข้อความ -1
+  - ถอดเสียง -2 เพิ่มเติม
+- คงระบบกดไมค์ค้างไว้แล้วปล่อยเพื่อส่ง
+- คงระบบซูมรูปด้วยนิ้ว
+- ใส่ placeholder รูปครบทุกชุด เพื่อให้กดเปลี่ยนทดสอบได้ทันที
 
-## ถ้าจะเปลี่ยนเป็นรูปจริงของพี่เองในอนาคต
-แค่เอารูปใหม่ไปแทนไฟล์เดิมใน `public/assets/...` โดยใช้ชื่อไฟล์เดิม เช่น
+## หมายเหตุสำคัญเรื่อง 20+
+ในแพ็กนี้ใช้ placeholder ที่ไม่โป๊โจ่งแจ้ง เพื่อให้ระบบทดสอบได้ก่อน
+ถ้าจะใส่รูปจริง ให้แทนไฟล์ใน:
+- `public/assets/outfits/special20/`
 
-### ผู้หญิง
-- `public/assets/avatars/female/default.jpg`
-- `public/assets/outfits/female/level01_student.jpg`
-- `public/assets/outfits/female/level02_student.jpg`
-- `public/assets/outfits/female/level03_casual.jpg`
-- `public/assets/outfits/female/level04_pink.jpg`
-- ... ไปเรื่อย ๆ
+ระบบรองรับราคา 10,000 เพชรต่อชุดแล้วใน `lib/characters.ts`
 
-### ผู้ชาย
-- `public/assets/avatars/male/default.jpg`
-- `public/assets/outfits/male/level01_student.jpg`
-- `public/assets/outfits/male/level02_blue.jpg`
-- ... ไปเรื่อย ๆ
-
-## วิธีอัปเดต GitHub ง่ายที่สุด
-1. เปิด repo
-2. Add file > Upload files
-3. ลากไฟล์ทั้งหมดของโปรเจกต์นี้ลงไป
+## วิธีอัปโหลด
+1. แตก zip
+2. เข้าโฟลเดอร์ `nongnam_next_dev_unlock_special20`
+3. ลากไฟล์ทั้งหมดเข้า GitHub repo เดิม
 4. Commit changes
-5. ไปที่ Vercel แล้ว Redeploy
+5. รอ Vercel deploy
+6. เปิดเว็บใหม่ด้วย `?v=20`
 
-## หมายเหตุเรื่องชุด
-เวอร์ชันนี้เป็นการ "สลับรูปทั้งตัว" เมื่อกดเปลี่ยนชุด
-ถ้าอนาคตพี่อยากได้แบบ "ตัวเดิม แต่เสื้อผ้าถูกสวมทับเป็นเลเยอร์" จะต้องทำเป็นระบบ layer PNG โปร่งใสแยกอีกเวอร์ชันหนึ่ง
+## เสียงอ่านหนังสือแบบไม่ใช้ token
+ถ้าจะทำชั้นหนังสือในอนาคต ใช้ browser SpeechSynthesis อ่านข้อความ local ได้
+แบบนี้ไม่เรียก OpenAI API และไม่ใช้ token ของ OpenAI

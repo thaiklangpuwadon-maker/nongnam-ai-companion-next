@@ -149,3 +149,102 @@ p{line-height:1.55;color:#765767}
   .bottom{grid-template-columns:62px 1fr 62px}
   .side{font-size:12px}
 }
+
+
+/* ===== Dev unlock + category tabs + chat bubbles ===== */
+.category-tabs{
+  display:grid;
+  grid-template-columns:1fr 1fr;
+  gap:10px;
+  margin-bottom:12px;
+}
+.category-tabs button{
+  border:0;
+  border-radius:18px;
+  padding:12px 10px;
+  font-weight:900;
+  color:var(--ink);
+  background:rgba(255,255,255,.68);
+  box-shadow:0 8px 22px rgba(80,38,60,.08);
+}
+.category-tabs button.active{
+  color:#fff;
+  background:linear-gradient(135deg,#ee91ad,#d84c75);
+}
+.category-tabs button.adult{
+  background:linear-gradient(135deg,#4c2638,#b94673);
+}
+.adult-card{
+  box-shadow:0 18px 42px rgba(90,36,70,.25);
+}
+.adult-badge{
+  position:absolute;
+  left:8px;
+  top:8px;
+  z-index:4;
+  border-radius:999px;
+  padding:5px 8px;
+  color:#fff;
+  background:rgba(44,22,35,.82);
+  font-weight:950;
+  font-size:12px;
+}
+
+.chat-log{
+  position:absolute;
+  left:14px;
+  right:14px;
+  bottom:210px;
+  z-index:7;
+  display:flex;
+  flex-direction:column;
+  gap:7px;
+  max-height:230px;
+  overflow:auto;
+  padding-right:2px;
+  pointer-events:none;
+}
+.bubble{
+  max-width:82%;
+  padding:9px 12px;
+  border-radius:18px;
+  box-shadow:0 8px 22px rgba(0,0,0,.08);
+  backdrop-filter:blur(6px);
+  line-height:1.42;
+  font-size:14px;
+  font-weight:650;
+}
+.bubble .speaker{
+  font-size:11px;
+  opacity:.72;
+  font-weight:900;
+  margin-bottom:2px;
+}
+.bubble.user{
+  align-self:flex-end;
+  color:#183829;
+  background:rgba(198,255,220,.86);
+  border-bottom-right-radius:6px;
+}
+.bubble.assistant{
+  align-self:flex-start;
+  color:#4a2d42;
+  background:rgba(255,255,255,.88);
+  border-bottom-left-radius:6px;
+}
+.bubble.assistant .speaker{ color:#d84c75; }
+.bubble.user .speaker{ color:#147a4b; }
+
+.subs{
+  bottom:178px;
+}
+.subline{
+  font-size:15px;
+  background:rgba(43,20,34,.22);
+  padding:5px 10px;
+  border-radius:999px;
+}
+.hint{
+  background:rgba(28,15,22,.58);
+  color:#ffffff;
+}

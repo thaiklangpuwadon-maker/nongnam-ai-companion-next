@@ -1,6 +1,6 @@
 "use client";
 import { useEffect, useRef, useState } from "react";
-import { characters, Gender } from "../lib/characters";
+import { characters, Gender, OutfitCategory, DEV_START_GEMS } from "../lib/characters";
 
 type Screen = "welcome"|"gender"|"profile"|"outfit"|"companion";
 type Status = "idle"|"recording"|"transcribing"|"thinking"|"speaking";
@@ -12,8 +12,10 @@ const KEY = "nongnam_next_voice_memory";
 const defaultMemory = {
   gender: "female" as Gender,
   outfit: 0,
+  outfitCategory: "regular" as OutfitCategory,
+  age20Confirmed: false,
   unlocked: { female: [0], male: [0] } as Record<Gender, number[]>,
-  gems: 120,
+  gems: DEV_START_GEMS,
   onboardingCompleted: false,
   profile: {
     userNickname: "พี่",
@@ -170,8 +172,10 @@ export default function Page() {
   const timer = useRef<any>(null);
 
   const gender = mem.gender;
-  const outfits = characters[gender].outfits;
-  const outfit = outfits[mem.outfit] || outfits[0];
+  const allOutfits = characters[gender].outfits;
+  const outfitCategory = (mem as any).outfitCategory || "regular";
+  const outfits = allOutfits.filter(o => o.category === outfitCategory);
+  const outfit = outfits[mem.outfit] || outfits[0] || allOutfits[0];
   const avatar = outfit?.image || characters[gender].avatar;
   const p = mem.profile;
 
@@ -199,7 +203,7 @@ export default function Page() {
   function addHistory(role:"user"|"assistant", content:string) { setMem(prev => ({...prev, history:[...prev.history,{role,content}].slice(-12)})); }
 
   function selectGender(g:Gender) {
-    setMem(prev => ({...prev, gender:g, outfit:0}));
+    setMem(prev => ({...prev, gender:g, outfit:0, outfitCategory:"regular"}));
   }
 
   function toggleTrait(id:string) {
@@ -208,9 +212,25 @@ export default function Page() {
   }
 
   function selectOutfit(i:number) {
-    if (!mem.unlocked[gender].includes(i)) return notify(`ชุดนี้ยังล็อกอยู่ ต้องใช้เครดิต ${outfits[i]?.price || 0} 💎`);
+    const selected = outfits[i];
+    if (!selected) return;
+    if (selected.category === "special20" && !(mem as any).age20Confirmed) {
+      const ok = confirm("หมวดนี้สำหรับผู้ใช้ที่มีอายุ 20 ปีขึ้นไป\nคุณยืนยันหรือไม่ว่าคุณมีอายุ 20 ปีขึ้นไป");
+      if (!ok) return;
+      save({ age20Confirmed:true });
+    }
     save({ outfit:i });
-    notify(`เปลี่ยนเป็น ${outfits[i].name} แล้ว`);
+    notify(`เปลี่ยนเป็น ${selected.name} แล้ว`);
+  }
+
+  function selectCategory(cat:OutfitCategory) {
+    if (cat === "special20" && !(mem as any).age20Confirmed) {
+      const ok = confirm("หมวดพิเศษ 20+ สำหรับผู้ใช้ที่มีอายุ 20 ปีขึ้นไปเท่านั้น\nตอนนี้เป็นโหมดทดสอบ ชุดทั้งหมดเปิดให้ลอง\nยืนยันว่าอายุ 20 ปีขึ้นไปหรือไม่");
+      if (!ok) return;
+      save({ age20Confirmed:true, outfitCategory:cat, outfit:0 });
+      return;
+    }
+    save({ outfitCategory:cat, outfit:0 });
   }
 
   function completeOnboarding() {
@@ -242,6 +262,7 @@ export default function Page() {
     const message = text.trim();
     if (!message) return;
     addHistory("user", message);
+    setMem(prev => ({...prev, gems: Math.max(0, (prev.gems || 0) - 1)}));
     setStatus("thinking");
     try {
       const r = await fetch("/api/chat", {
@@ -250,7 +271,8 @@ export default function Page() {
         body: JSON.stringify({
           message,
           profile: {...p, nongnamGender:gender},
-          history: mem.history.slice(-8)
+          history: mem.history.slice(-6),
+          economyMode: true
         })
       });
       const data = await r.json();
@@ -355,6 +377,7 @@ export default function Page() {
         return setStatus("idle");
       }
       addSub(`พี่พูดว่า: ${text}`);
+      setMem(prev => ({...prev, gems: Math.max(0, (prev.gems || 0) - 2)}));
       await sendToAI(text);
     } catch(e) {
       console.error(e);
@@ -404,12 +427,16 @@ export default function Page() {
 
     {screen==="outfit" && <section className="screen">
       <div className="top"><button className="icon" onClick={()=>setScreen("profile")}>←</button><div className="brand"><h2>เลือกชุด</h2><p>กดชุดเพื่อสลับลุคทันที</p></div><button className="icon" onClick={()=>setScreen("companion")}>✓</button></div>
+      <div className="category-tabs">
+        <button className={outfitCategory==="regular"?"active":""} onClick={()=>selectCategory("regular")}>ชุดทั่วไป</button>
+        {gender==="female" && <button className={outfitCategory==="special20"?"active adult":""} onClick={()=>selectCategory("special20")}>พิเศษ 20+</button>}
+      </div>
       <div className="stage">
-        <div className="stage-pill">แตะค้าง/จีบเพื่อดูใกล้ ๆ</div>
+        <div className="stage-pill">{outfitCategory==="special20" ? "20+ โหมดทดสอบ: เปิดทุกชุด" : "แตะค้าง/จีบเพื่อดูใกล้ ๆ"}</div>
         <div className="stage-name">{p.nongnamName}</div>
         <ZoomableImage src={avatar} alt={p.nongnamName} className="stage-zoom"/>
       </div>
-      <div className="outfits">{outfits.map((o,i)=>{const unlocked=mem.unlocked[gender].includes(i);return <div key={o.id} className={`outfit ${i===mem.outfit&&unlocked?"selected":""}`} onClick={()=>selectOutfit(i)}><div className="mini"><img src={o.image}/>{!unlocked&&<div className="lock">🔒</div>}</div>{i===mem.outfit&&unlocked&&<div className="tick">✓</div>}<div className="info"><b>LEVEL {i+1}: {o.name}</b><span>{o.desc}</span><div className={`price ${o.price===0?"free":""}`}>{o.price===0?"ฟรี":`💎 ${o.price}`}</div></div></div>})}</div>
+      <div className="outfits">{outfits.map((o,i)=>{const unlocked=true;return <div key={o.id} className={`outfit ${i===mem.outfit?"selected":""} ${o.ageRestricted?"adult-card":""}`} onClick={()=>selectOutfit(i)}><div className="mini"><img src={o.image}/>{o.ageRestricted&&<div className="adult-badge">20+</div>}</div>{i===mem.outfit&&<div className="tick">✓</div>}<div className="info"><b>{o.ageRestricted?"20+ ":""}LEVEL {i+1}: {o.name}</b><span>{o.desc}</span><div className={`price ${o.price===0?"free":""}`}>{o.price===0?"ฟรี":`💎 ${o.price}`}</div></div></div>})}</div>
       <div className="bottom-next"><button className="primary full" onClick={completeOnboarding}>เริ่มคุย →</button></div>
     </section>}
 
@@ -419,7 +446,15 @@ export default function Page() {
         <div className="float-top"><button className="icon" onClick={()=>setScreen("outfit")}>☰</button><div className="pill">{p.nongnamName} AI</div><div className="pill">💎 {mem.gems}</div></div>
         <div className="name">{p.nongnamName}</div>
         <div className={`status ${status}`}>{statusText}</div>
-        <div className="subs">{(mem.subtitles.length?mem.subtitles:[greeting()]).slice(-3).reverse().map((t,i)=><div key={i} className={`subline ${i===1?"old1":""} ${i===2?"old2":""}`}>{t}</div>)}</div>
+        <div className="chat-log">
+          {(mem.history.length ? mem.history : [{role:"assistant" as const, content:greeting()}]).slice(-5).map((m,i)=>
+            <div key={i} className={`bubble ${m.role==="user"?"user":"assistant"}`}>
+              <div className="speaker">{m.role==="user"?p.userNickname:p.nongnamName}</div>
+              <div>{m.content}</div>
+            </div>
+          )}
+        </div>
+        <div className="subs">{(mem.subtitles.length?mem.subtitles:[greeting()]).slice(-2).reverse().map((t,i)=><div key={i} className={`subline ${i===1?"old1":""}`}>{t}</div>)}</div>
         <div className="quick"><button onClick={()=>sendToAI("คิดถึง")}>💗 คิดถึง</button><button onClick={()=>sendToAI("วันนี้เหนื่อย")}>😮‍💨 วันนี้เหนื่อย</button><button onClick={()=>sendToAI("ช่วยวางแผน")}>📋 ช่วยวางแผน</button><button onClick={()=>sendToAI("คุยเล่น")}>😊 คุยเล่น</button></div>
         <div className="bottom"><button className="side" onClick={()=>setScreen("outfit")}>👗 ชุด</button><div className="center">
           <button className={`mic ${status==="recording"?"listening":""}`} onPointerDown={startRecording} onPointerUp={stopRecording} onPointerCancel={cancelRecording} onContextMenu={e=>e.preventDefault()}>{status==="recording"?"🔴":"🎙"}</button>
